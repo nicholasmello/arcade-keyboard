@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+mod heartbeat;
+
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use defmt::*;
@@ -10,7 +12,6 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, InterruptHandler};
-use embassy_time::{Duration, Timer};
 use embassy_usb::class::hid::{
     HidBootProtocol, HidProtocolMode, HidReaderWriter, HidSubclass, ReportId, RequestHandler, State,
 };
@@ -33,9 +34,9 @@ async fn main(_spawner: Spawner) {
 
     // Create embassy-usb Config
     let mut config = Config::new(0xc0de, 0xcafe);
-    config.manufacturer = Some("Embassy");
-    config.product = Some("HID keyboard example");
-    config.serial_number = Some("12345678");
+    config.manufacturer = Some("Nicholas Mello");
+    config.product = Some("Pi Pico Arcade Keyboard");
+    config.serial_number = Some("00000001");
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     config.composite_with_iads = false;
@@ -77,12 +78,6 @@ async fn main(_spawner: Spawner) {
     };
     let hid = HidReaderWriter::<_, 1, 8>::new(&mut builder, &mut state, config);
 
-    // Build the builder.
-    let mut usb = builder.build();
-
-    // Run the USB device.
-    let usb_fut = usb.run();
-
     // Set up the signal pin that will be used to trigger the keyboard.
     let mut signal_pin = Input::new(p.PIN_16, Pull::None);
 
@@ -94,7 +89,6 @@ async fn main(_spawner: Spawner) {
     // Do stuff with the class!
     let in_fut = async {
         loop {
-            info!("Waiting for HIGH on pin 16");
             signal_pin.wait_for_high().await;
             info!("HIGH DETECTED");
 
@@ -144,23 +138,14 @@ async fn main(_spawner: Spawner) {
         reader.run(false, &mut request_handler).await;
     };
 
-    let heartbeat = async {
-        let mut led = Output::new(p.PIN_25, Level::Low);
+    let mut usb = builder.build();
+    let led = Output::new(p.PIN_25, Level::Low);
 
-        loop {
-            info!("led on!");
-            led.set_high();
-            Timer::after(Duration::from_millis(1000)).await;
-
-            info!("led off!");
-            led.set_low();
-            Timer::after(Duration::from_millis(1000)).await;
-        }
-    };
-
-    // Run everything concurrently.
-    // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    join(join(usb_fut, heartbeat), join(in_fut, out_fut)).await;
+    join(
+        join(usb.run(), heartbeat::heartbeat(led)),
+        join(in_fut, out_fut),
+    )
+    .await;
 }
 
 struct MyRequestHandler {}
