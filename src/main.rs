@@ -2,9 +2,11 @@
 #![no_main]
 
 mod heartbeat;
+mod keyboard;
 
+use crate::heartbeat::heartbeat;
+use crate::keyboard::Keyboard;
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
@@ -18,6 +20,7 @@ use embassy_usb::class::hid::{
 use embassy_usb::control::OutResponse;
 use embassy_usb::{Builder, Config, Handler};
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
+
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
@@ -84,55 +87,15 @@ async fn main(_spawner: Spawner) {
     // Enable the schmitt trigger to slightly debounce.
     signal_pin.set_schmitt(true);
 
-    let (reader, mut writer) = hid.split();
+    let (reader, writer) = hid.split();
 
-    // Do stuff with the class!
-    let in_fut = async {
-        loop {
-            signal_pin.wait_for_high().await;
-            info!("HIGH DETECTED");
-
-            if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8 {
-                match writer.write(&[0, 0, 4, 0, 0, 0, 0, 0]).await {
-                    Ok(()) => {}
-                    Err(e) => warn!("Failed to send boot report: {:?}", e),
-                };
-            } else {
-                // Create a report with the A key pressed. (no shift modifier)
-                let report = KeyboardReport {
-                    keycodes: [4, 0, 0, 0, 0, 0],
-                    leds: 0,
-                    modifier: 0,
-                    reserved: 0,
-                };
-                // Send the report.
-                match writer.write_serialize(&report).await {
-                    Ok(()) => {}
-                    Err(e) => warn!("Failed to send report: {:?}", e),
-                };
-            }
-
-            signal_pin.wait_for_low().await;
-            info!("LOW DETECTED");
-            if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8 {
-                match writer.write(&[0, 0, 0, 0, 0, 0, 0, 0]).await {
-                    Ok(()) => {}
-                    Err(e) => warn!("Failed to send boot report: {:?}", e),
-                };
-            } else {
-                let report = KeyboardReport {
-                    keycodes: [0, 0, 0, 0, 0, 0],
-                    leds: 0,
-                    modifier: 0,
-                    reserved: 0,
-                };
-                match writer.write_serialize(&report).await {
-                    Ok(()) => {}
-                    Err(e) => warn!("Failed to send report: {:?}", e),
-                };
-            }
+    let mut keyboard = Keyboard::<_, 1>::new(writer);
+    match keyboard.add_key(signal_pin, 'a') {
+        Ok(()) => info!("Key 'a' registered"),
+        Err(_) => {
+            defmt::panic!("Failed to register key!");
         }
-    };
+    }
 
     let out_fut = async {
         reader.run(false, &mut request_handler).await;
@@ -142,8 +105,8 @@ async fn main(_spawner: Spawner) {
     let led = Output::new(p.PIN_25, Level::Low);
 
     join(
-        join(usb.run(), heartbeat::heartbeat(led)),
-        join(in_fut, out_fut),
+        join(usb.run(), heartbeat(led)),
+        join(keyboard.process(), out_fut),
     )
     .await;
 }
