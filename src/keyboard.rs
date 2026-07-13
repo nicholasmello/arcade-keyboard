@@ -10,7 +10,7 @@ use embassy_usb::{
 };
 use usbd_hid::descriptor::KeyboardReport;
 
-use crate::HID_PROTOCOL_MODE;
+use crate::usb::HID_PROTOCOL_MODE;
 
 const WRITE_N: usize = 8;
 
