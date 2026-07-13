@@ -14,6 +14,8 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, InterruptHandler};
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+use embassy_sync::channel::Channel;
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -23,12 +25,14 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
+    let keyboard_events: Channel<ThreadModeRawMutex, usb::KeyboardEvent, 64> = Channel::new();
+
     let p = embassy_rp::init(Default::default());
 
     // Create the driver, from the HAL.
     let driver = Driver::new(p.USB, Irqs);
     let mut usb_buf = usb::UsbKeyboardBuf::new();
-    let (usbkey, writer) = usb::UsbKeyboard::create_usb(&mut usb_buf, driver);
+    let usbkey = usb::UsbKeyboard::create_usb(&mut usb_buf, driver);
 
     // Set up the signal pin that will be used to trigger the keyboard.
     let mut signal_pin = Input::new(p.PIN_16, Pull::None);
@@ -36,7 +40,7 @@ async fn main(_spawner: Spawner) {
     // Enable the schmitt trigger to slightly debounce.
     signal_pin.set_schmitt(true);
 
-    let mut keyboard = Keyboard::<_, 1>::new(writer);
+    let mut keyboard = Keyboard::<1>::new();
     match keyboard.add_key(signal_pin, 'a') {
         Ok(()) => info!("Key 'a' registered"),
         Err(_) => {
@@ -46,5 +50,9 @@ async fn main(_spawner: Spawner) {
 
     let led = Output::new(p.PIN_25, Level::Low);
 
-    join(join(usbkey.run(), heartbeat(led)), keyboard.process()).await;
+    join(
+        join(usbkey.run(keyboard_events.receiver()), heartbeat(led)),
+        keyboard.process(keyboard_events.sender()),
+    )
+    .await;
 }

@@ -4,6 +4,8 @@ use defmt::*;
 use embassy_futures::join::join;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
+use embassy_sync::blocking_mutex::raw::RawMutex;
+use embassy_sync::channel::Receiver;
 use embassy_usb::UsbDevice;
 use embassy_usb::class::hid::{
     HidBootProtocol, HidProtocolMode, HidReader, HidReaderWriter, HidSubclass, HidWriter, ReportId,
@@ -14,6 +16,18 @@ use embassy_usb::{Builder, Config, Handler};
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
 
 pub static HID_PROTOCOL_MODE: AtomicU8 = AtomicU8::new(HidProtocolMode::Boot as u8);
+
+#[derive(Clone, Copy)]
+pub enum KeyboardAction {
+    Press,
+    Depress,
+}
+
+#[derive(Clone, Copy)]
+pub struct KeyboardEvent {
+    pub key: char,
+    pub action: KeyboardAction,
+}
 
 pub struct UsbKeyboardBuf<'d> {
     // Create embassy-usb DeviceBuilder using the driver and config.
@@ -44,14 +58,12 @@ impl<'d> UsbKeyboardBuf<'d> {
 pub struct UsbKeyboard<'d> {
     usb: UsbDevice<'d, Driver<'d, USB>>,
     reader: HidReader<'d, Driver<'d, USB>, 1>,
+    writer: HidWriter<'d, Driver<'d, USB>, 8>,
 }
 
 impl<'d> UsbKeyboard<'d> {
     // HidWriter<'_, Driver<'_, USB>, 8>
-    pub fn create_usb(
-        buf: &'d mut UsbKeyboardBuf<'d>,
-        driver: Driver<'d, USB>,
-    ) -> (Self, HidWriter<'d, Driver<'d, USB>, 8>) {
+    pub fn create_usb(buf: &'d mut UsbKeyboardBuf<'d>, driver: Driver<'d, USB>) -> Self {
         // Create embassy-usb Config
         let mut config = Config::new(0xc0de, 0xcafe);
         config.manufacturer = Some("Nicholas Mello");
@@ -99,17 +111,90 @@ impl<'d> UsbKeyboard<'d> {
 
         let usb = builder.build();
 
-        (Self { usb, reader }, writer)
+        Self {
+            usb,
+            reader,
+            writer,
+        }
     }
 
-    pub async fn run(mut self) {
+    pub async fn run<'ch, M, const N: usize>(self, receiver: Receiver<'ch, M, KeyboardEvent, N>)
+    where
+        M: RawMutex,
+    {
         let mut request_handler = MyRequestHandler {};
 
-        let out_fut = async {
-            self.reader.run(false, &mut request_handler).await;
+        let Self {
+            mut usb,
+            reader,
+            mut writer,
+        } = self;
+
+        let reader_fut = async {
+            reader.run(false, &mut request_handler).await;
         };
 
-        join(self.usb.run(), out_fut).await;
+        let writer_fut = async {
+            loop {
+                let event = receiver.receive().await;
+
+                match event {
+                    KeyboardEvent {
+                        key: 'a',
+                        action: KeyboardAction::Press,
+                    } => {
+                        if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8
+                        {
+                            match writer.write(&[0, 0, 4, 0, 0, 0, 0, 0]).await {
+                                Ok(()) => {}
+                                Err(e) => warn!("Failed to send boot report: {:?}", e),
+                            };
+                        } else {
+                            // Create a report with the A key pressed. (no shift modifier)
+                            let report = KeyboardReport {
+                                keycodes: [4, 0, 0, 0, 0, 0],
+                                leds: 0,
+                                modifier: 0,
+                                reserved: 0,
+                            };
+                            // Send the report.
+                            match writer.write_serialize(&report).await {
+                                Ok(()) => {}
+                                Err(e) => warn!("Failed to send report: {:?}", e),
+                            };
+                        }
+                    }
+                    KeyboardEvent {
+                        key: 'a',
+                        action: KeyboardAction::Depress,
+                    } => {
+                        if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8
+                        {
+                            match writer.write(&[0, 0, 0, 0, 0, 0, 0, 0]).await {
+                                Ok(()) => {}
+                                Err(e) => warn!("Failed to send boot report: {:?}", e),
+                            };
+                        } else {
+                            let report = KeyboardReport {
+                                keycodes: [0, 0, 0, 0, 0, 0],
+                                leds: 0,
+                                modifier: 0,
+                                reserved: 0,
+                            };
+                            match writer.write_serialize(&report).await {
+                                Ok(()) => {}
+                                Err(e) => warn!("Failed to send report: {:?}", e),
+                            };
+                        }
+                    }
+                    _ => {
+                        defmt::panic!("Unexpected event!");
+                    }
+                }
+            }
+        };
+
+        join(usb.run(), join(reader_fut, writer_fut)).await;
     }
 }
 
