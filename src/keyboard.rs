@@ -3,7 +3,6 @@ use defmt::*;
 use embassy_rp::gpio::Input;
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_sync::channel::Sender;
-use embassy_time::{Duration, Timer};
 
 pub struct Key<'a> {
     button: Input<'a>,
@@ -28,9 +27,6 @@ impl Key<'_> {
                 })
                 .await;
 
-            // Debounce
-            Timer::after(Duration::from_millis(50)).await;
-
             self.button.wait_for_low().await;
             info!("Button {} unpressed", self.value);
 
@@ -40,9 +36,6 @@ impl Key<'_> {
                     action: KeyboardAction::Depress,
                 })
                 .await;
-
-            // Debounce
-            Timer::after(Duration::from_millis(50)).await;
         }
     }
 }
