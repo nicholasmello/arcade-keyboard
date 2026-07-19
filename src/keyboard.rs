@@ -1,43 +1,12 @@
-use crate::usb::{KeyboardAction, KeyboardEvent};
-use defmt::*;
+use crate::usb::KeyboardEvent;
 use embassy_rp::gpio::Input;
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_sync::channel::Sender;
+use futures_util::stream::{FuturesUnordered, StreamExt};
 
 pub struct Key<'a> {
     button: Input<'a>,
     value: char,
-}
-
-impl Key<'_> {
-    pub async fn process<'ch, M, const N: usize>(
-        &mut self,
-        sender: Sender<'ch, M, KeyboardEvent, N>,
-    ) where
-        M: RawMutex,
-    {
-        loop {
-            self.button.wait_for_high().await;
-            info!("Button {} pressed", self.value);
-
-            sender
-                .send(KeyboardEvent {
-                    key: self.value,
-                    action: KeyboardAction::Press,
-                })
-                .await;
-
-            self.button.wait_for_low().await;
-            info!("Button {} unpressed", self.value);
-
-            sender
-                .send(KeyboardEvent {
-                    key: self.value,
-                    action: KeyboardAction::Depress,
-                })
-                .await;
-        }
-    }
 }
 
 impl Key<'_> {
@@ -80,7 +49,21 @@ impl<'d, const KEY_N: usize> Keyboard<'d, KEY_N> {
     where
         M: RawMutex,
     {
-        // TODO: Make this a loop that is concatinated together
-        self.keys[0].as_mut().unwrap().process(sender).await;
+        loop {
+            self.keys
+                .iter_mut()
+                .filter_map(|opt| opt.as_mut().map(|s| s.button.wait_for_any_edge()))
+                .collect::<FuturesUnordered<_>>()
+                .next()
+                .await;
+            for key in self.keys.iter_mut().filter_map(|opt| opt.as_mut()) {
+                sender
+                    .send(KeyboardEvent {
+                        key: key.value,
+                        action: key.button.get_level().into(),
+                    })
+                    .await;
+            }
+        }
     }
 }

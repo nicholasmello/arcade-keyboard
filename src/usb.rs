@@ -2,6 +2,7 @@ use core::cell::OnceCell;
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use defmt::*;
 use embassy_futures::join::join;
+use embassy_rp::gpio::Level;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
 use embassy_sync::blocking_mutex::raw::RawMutex;
@@ -21,6 +22,15 @@ pub static HID_PROTOCOL_MODE: AtomicU8 = AtomicU8::new(HidProtocolMode::Boot as 
 pub enum KeyboardAction {
     Press,
     Depress,
+}
+
+impl From<Level> for KeyboardAction {
+    fn from(value: Level) -> Self {
+        match value {
+            Level::Low => KeyboardAction::Depress,
+            Level::High => KeyboardAction::Press,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

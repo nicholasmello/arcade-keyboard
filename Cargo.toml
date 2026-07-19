@@ -13,5 +13,8 @@ embassy-rp = { version = "0.10.0", features = ["chrono", "defmt", "rp2040", "rt"
 embassy-sync = { version = "0.8.0", features = ["defmt"] }
 embassy-time = "0.5.1"
 embassy-usb = { version = "0.6.0", features = ["defmt"] }
+embedded-alloc = "0.7.0"
+futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "portable-atomic-alloc"] }
 panic-probe = { version = "1.0.0", features = ["defmt"] }
+portable-atomic = { version = "1.14.0", default-features = false, features = ["critical-section"] }
 usbd-hid = { version = "0.10.0", features = ["defmt"] }
