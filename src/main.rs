@@ -47,11 +47,11 @@ async fn main(_spawner: Spawner) {
     let driver = Driver::new(p.USB, Irqs);
     let mut usb_buf = usb::UsbKeyboardBuf::new();
     let usbkey = usb::UsbKeyboard::create_usb(&mut usb_buf, driver);
-    let mut keyboard = Keyboard::<6>::new();
+    let mut keyboard = Keyboard::<10>::new();
 
     let mut signal_pin = Input::new(p.PIN_15, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, UsbKeycodes::Left) {
+    match keyboard.add_key(signal_pin, UsbKeycodes::X) {
         Ok(()) => info!("Key 'a' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -59,7 +59,7 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_16, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, UsbKeycodes::Down) {
+    match keyboard.add_key(signal_pin, UsbKeycodes::C) {
         Ok(()) => info!("Key 's' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -75,7 +75,7 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_18, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, UsbKeycodes::Right) {
+    match keyboard.add_key(signal_pin, UsbKeycodes::D) {
         Ok(()) => info!("Key 'd' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -91,7 +91,39 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_20, Pull::None);
     signal_pin.set_schmitt(true);
+    match keyboard.add_key(signal_pin, UsbKeycodes::ShiftLeft) {
+        Ok(()) => info!("Key 'w' registered"),
+        Err(e) => {
+            defmt::panic!("Failed to register key! {:?}", e);
+        }
+    }
+    let mut signal_pin = Input::new(p.PIN_14, Pull::None);
+    signal_pin.set_schmitt(true);
     match keyboard.add_key(signal_pin, UsbKeycodes::Up) {
+        Ok(()) => info!("Key 'w' registered"),
+        Err(e) => {
+            defmt::panic!("Failed to register key! {:?}", e);
+        }
+    }
+    let mut signal_pin = Input::new(p.PIN_13, Pull::None);
+    signal_pin.set_schmitt(true);
+    match keyboard.add_key(signal_pin, UsbKeycodes::Down) {
+        Ok(()) => info!("Key 'w' registered"),
+        Err(e) => {
+            defmt::panic!("Failed to register key! {:?}", e);
+        }
+    }
+    let mut signal_pin = Input::new(p.PIN_12, Pull::None);
+    signal_pin.set_schmitt(true);
+    match keyboard.add_key(signal_pin, UsbKeycodes::Right) {
+        Ok(()) => info!("Key 'w' registered"),
+        Err(e) => {
+            defmt::panic!("Failed to register key! {:?}", e);
+        }
+    }
+    let mut signal_pin = Input::new(p.PIN_11, Pull::None);
+    signal_pin.set_schmitt(true);
+    match keyboard.add_key(signal_pin, UsbKeycodes::Left) {
         Ok(()) => info!("Key 'w' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
