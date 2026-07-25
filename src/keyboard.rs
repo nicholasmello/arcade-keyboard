@@ -114,6 +114,15 @@ pub enum UsbKeycodes {
     Mute,
     VolumeUp,
     VolumeDown,
+
+    ControlLeft = 224,
+    ShiftLeft,
+    AltLeft,
+    GUILeft,
+    ControlRight,
+    ShiftRight,
+    AltRight,
+    GUIRight,
 }
 
 pub struct Key<'a> {
