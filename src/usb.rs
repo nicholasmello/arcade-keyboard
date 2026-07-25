@@ -27,8 +27,8 @@ pub enum KeyboardAction {
 impl From<Level> for KeyboardAction {
     fn from(value: Level) -> Self {
         match value {
-            Level::Low => KeyboardAction::Depress,
-            Level::High => KeyboardAction::Press,
+            Level::High => KeyboardAction::Depress,
+            Level::Low => KeyboardAction::Press,
         }
     }
 }
