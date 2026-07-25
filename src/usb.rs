@@ -1,8 +1,8 @@
+use alloc::vec::Vec;
 use core::cell::OnceCell;
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use defmt::*;
 use embassy_futures::join::join;
-use embassy_rp::gpio::Level;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
 use embassy_sync::blocking_mutex::raw::RawMutex;
@@ -17,27 +17,6 @@ use embassy_usb::{Builder, Config, Handler};
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
 
 pub static HID_PROTOCOL_MODE: AtomicU8 = AtomicU8::new(HidProtocolMode::Boot as u8);
-
-#[derive(Clone, Copy)]
-pub enum KeyboardAction {
-    Press,
-    Depress,
-}
-
-impl From<Level> for KeyboardAction {
-    fn from(value: Level) -> Self {
-        match value {
-            Level::High => KeyboardAction::Depress,
-            Level::Low => KeyboardAction::Press,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct KeyboardEvent {
-    pub key: char,
-    pub action: KeyboardAction,
-}
 
 pub struct UsbKeyboardBuf<'d> {
     // Create embassy-usb DeviceBuilder using the driver and config.
@@ -128,7 +107,7 @@ impl<'d> UsbKeyboard<'d> {
         }
     }
 
-    pub async fn run<'ch, M, const N: usize>(self, receiver: Receiver<'ch, M, KeyboardEvent, N>)
+    pub async fn run<'ch, M, const N: usize>(self, receiver: Receiver<'ch, M, Vec<char>, N>)
     where
         M: RawMutex,
     {
@@ -148,58 +127,39 @@ impl<'d> UsbKeyboard<'d> {
             loop {
                 let event = receiver.receive().await;
 
-                match event {
-                    KeyboardEvent {
-                        key: 'a',
-                        action: KeyboardAction::Press,
-                    } => {
-                        if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8
-                        {
-                            match writer.write(&[0, 0, 4, 0, 0, 0, 0, 0]).await {
-                                Ok(()) => {}
-                                Err(e) => warn!("Failed to send boot report: {:?}", e),
-                            };
-                        } else {
-                            // Create a report with the A key pressed. (no shift modifier)
-                            let report = KeyboardReport {
-                                keycodes: [4, 0, 0, 0, 0, 0],
-                                leds: 0,
-                                modifier: 0,
-                                reserved: 0,
-                            };
-                            // Send the report.
-                            match writer.write_serialize(&report).await {
-                                Ok(()) => {}
-                                Err(e) => warn!("Failed to send report: {:?}", e),
-                            };
-                        }
-                    }
-                    KeyboardEvent {
-                        key: 'a',
-                        action: KeyboardAction::Depress,
-                    } => {
-                        if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8
-                        {
-                            match writer.write(&[0, 0, 0, 0, 0, 0, 0, 0]).await {
-                                Ok(()) => {}
-                                Err(e) => warn!("Failed to send boot report: {:?}", e),
-                            };
-                        } else {
-                            let report = KeyboardReport {
-                                keycodes: [0, 0, 0, 0, 0, 0],
-                                leds: 0,
-                                modifier: 0,
-                                reserved: 0,
-                            };
-                            match writer.write_serialize(&report).await {
-                                Ok(()) => {}
-                                Err(e) => warn!("Failed to send report: {:?}", e),
-                            };
-                        }
-                    }
-                    _ => {
-                        defmt::panic!("Unexpected event!");
-                    }
+                let mut boot_keys = [0, 0, 0, 0, 0, 0, 0, 0];
+
+                for (&key, idx) in event.iter().zip(2usize..) {
+                    let boot_key = match key {
+                        'd' => 79,
+                        'a' => 80,
+                        's' => 81,
+                        'w' => 82,
+                        ('a'..='z') => (key as u8) - b'a' + 4,
+                        _ => defmt::panic!("Not supported key: {}", key),
+                    };
+                    boot_keys[idx] = boot_key;
+                }
+
+                if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8 {
+                    match writer.write(&boot_keys).await {
+                        Ok(()) => {}
+                        Err(e) => warn!("Failed to send boot report: {:?}", e),
+                    };
+                } else {
+                    defmt::unimplemented!("Only supports boot mode keyboards!");
+                    // // Create a report with the A key pressed. (no shift modifier)
+                    // let report = KeyboardReport {
+                    //     keycodes: [4, 0, 0, 0, 0, 0],
+                    //     leds: 0,
+                    //     modifier: 0,
+                    //     reserved: 0,
+                    // };
+                    // // Send the report.
+                    // match writer.write_serialize(&report).await {
+                    //     Ok(()) => {}
+                    //     Err(e) => warn!("Failed to send report: {:?}", e),
+                    // };
                 }
             }
         };
