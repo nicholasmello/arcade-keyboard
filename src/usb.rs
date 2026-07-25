@@ -1,7 +1,7 @@
+use alloc::vec::Vec;
 use core::cell::OnceCell;
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use defmt::*;
-use alloc::vec::Vec;
 use embassy_futures::join::join;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
@@ -128,20 +128,17 @@ impl<'d> UsbKeyboard<'d> {
                 let event = receiver.receive().await;
 
                 let mut boot_keys = [0, 0, 0, 0, 0, 0, 0, 0];
-                let mut boot_keys_idx = 2usize;
 
-                for key in event.iter() {
+                for (key, idx) in event.iter().zip(2usize..) {
                     let boot_key = match key {
                         'a' => 4,
                         _ => defmt::panic!("Not supported key: {}", key),
                     };
-                    boot_keys[boot_keys_idx] = boot_key;
-                    boot_keys_idx+=1;
+                    boot_keys[idx] = boot_key;
                 }
 
-                if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8
-                {
-                    match writer.write(&[0, 0, 4, 0, 0, 0, 0, 0]).await {
+                if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8 {
+                    match writer.write(&boot_keys).await {
                         Ok(()) => {}
                         Err(e) => warn!("Failed to send boot report: {:?}", e),
                     };
