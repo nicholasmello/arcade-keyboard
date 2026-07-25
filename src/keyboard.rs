@@ -21,6 +21,7 @@ pub struct Keyboard<'d, const KEY_N: usize> {
     num_keys: usize,
 }
 
+#[derive(Debug, defmt::Format)]
 pub enum KeyboardError {
     MaxKeys,
 }
