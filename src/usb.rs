@@ -1,3 +1,4 @@
+use crate::keyboard::UsbKeycodes;
 use alloc::vec::Vec;
 use core::cell::OnceCell;
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -107,7 +108,7 @@ impl<'d> UsbKeyboard<'d> {
         }
     }
 
-    pub async fn run<'ch, M, const N: usize>(self, receiver: Receiver<'ch, M, Vec<char>, N>)
+    pub async fn run<'ch, M, const N: usize>(self, receiver: Receiver<'ch, M, Vec<UsbKeycodes>, N>)
     where
         M: RawMutex,
     {
@@ -130,15 +131,7 @@ impl<'d> UsbKeyboard<'d> {
                 let mut boot_keys = [0, 0, 0, 0, 0, 0, 0, 0];
 
                 for (&key, idx) in event.iter().zip(2usize..) {
-                    let boot_key = match key {
-                        'd' => 79,
-                        'a' => 80,
-                        's' => 81,
-                        'w' => 82,
-                        ('a'..='z') => (key as u8) - b'a' + 4,
-                        _ => defmt::panic!("Not supported key: {}", key),
-                    };
-                    boot_keys[idx] = boot_key;
+                    boot_keys[idx] = key as u8;
                 }
 
                 if HID_PROTOCOL_MODE.load(Ordering::Relaxed) == HidProtocolMode::Boot as u8 {

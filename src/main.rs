@@ -7,7 +7,7 @@ mod usb;
 
 extern crate alloc;
 use crate::heartbeat::heartbeat;
-use crate::keyboard::Keyboard;
+use crate::keyboard::{Keyboard, UsbKeycodes};
 use alloc::vec::Vec;
 use defmt::*;
 use embassy_executor::Spawner;
@@ -39,7 +39,7 @@ async fn main(_spawner: Spawner) {
         );
     }
 
-    let keyboard_events: Channel<ThreadModeRawMutex, Vec<char>, 64> = Channel::new();
+    let keyboard_events: Channel<ThreadModeRawMutex, Vec<UsbKeycodes>, 64> = Channel::new();
 
     let p = embassy_rp::init(Default::default());
 
@@ -51,7 +51,7 @@ async fn main(_spawner: Spawner) {
 
     let mut signal_pin = Input::new(p.PIN_15, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, 'a') {
+    match keyboard.add_key(signal_pin, UsbKeycodes::Left) {
         Ok(()) => info!("Key 'a' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -59,7 +59,7 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_16, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, 's') {
+    match keyboard.add_key(signal_pin, UsbKeycodes::Down) {
         Ok(()) => info!("Key 's' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -67,7 +67,7 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_17, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, 'x') {
+    match keyboard.add_key(signal_pin, UsbKeycodes::X) {
         Ok(()) => info!("Key 'x' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -75,7 +75,7 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_18, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, 'd') {
+    match keyboard.add_key(signal_pin, UsbKeycodes::Right) {
         Ok(()) => info!("Key 'd' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -83,7 +83,7 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_19, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, 'c') {
+    match keyboard.add_key(signal_pin, UsbKeycodes::C) {
         Ok(()) => info!("Key 'c' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
@@ -91,7 +91,7 @@ async fn main(_spawner: Spawner) {
     }
     let mut signal_pin = Input::new(p.PIN_20, Pull::None);
     signal_pin.set_schmitt(true);
-    match keyboard.add_key(signal_pin, 'w') {
+    match keyboard.add_key(signal_pin, UsbKeycodes::Up) {
         Ok(()) => info!("Key 'w' registered"),
         Err(e) => {
             defmt::panic!("Failed to register key! {:?}", e);
