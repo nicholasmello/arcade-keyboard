@@ -4,14 +4,126 @@ use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_sync::channel::Sender;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum UsbKeycodes {
+    A = 4,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+    Eight,
+    Nine,
+    Zero,
+    Enter,
+    Escape,
+    BackSpace,
+    Tab,
+    Space,
+    Hyphen,
+    Equal,
+    SquareBracketLeft,
+    SquareBracketRight,
+    BackSlash,
+
+    Semicolon = 51,
+    SingleQuote,
+    Backtick,
+    Comma,
+    Period,
+    ForwardSlash,
+    CapsLock,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    PrintScreen,
+    ScrollLock,
+    Pause,
+    Insert,
+    Home,
+    PageUp,
+    Delete,
+    End,
+    PageDown,
+    Right,
+    Left,
+    Down,
+    Up,
+    NumLock,
+
+    F13 = 104,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+    F21,
+    F22,
+    F23,
+    F24,
+    Execute,
+    Help,
+    Menu,
+    Select,
+    Again,
+    Undo,
+    Cut,
+    Copy,
+    Paste,
+    Find,
+    Mute,
+    VolumeUp,
+    VolumeDown,
+}
+
 pub struct Key<'a> {
     button: Input<'a>,
-    value: char,
+    value: UsbKeycodes,
 }
 
 impl Key<'_> {
     #[allow(unused)]
-    pub async fn set_value(mut self, value: char) {
+    pub async fn set_value(mut self, value: UsbKeycodes) {
         self.value = value;
     }
 }
@@ -34,7 +146,7 @@ impl<'d, const KEY_N: usize> Keyboard<'d, KEY_N> {
         }
     }
 
-    pub fn add_key(&mut self, button: Input<'d>, value: char) -> Result<(), KeyboardError> {
+    pub fn add_key(&mut self, button: Input<'d>, value: UsbKeycodes) -> Result<(), KeyboardError> {
         let key = self
             .keys
             .get_mut(self.num_keys)
@@ -46,8 +158,10 @@ impl<'d, const KEY_N: usize> Keyboard<'d, KEY_N> {
         Ok(())
     }
 
-    pub async fn process<'ch, M, const N: usize>(mut self, sender: Sender<'ch, M, Vec<char>, N>)
-    where
+    pub async fn process<'ch, M, const N: usize>(
+        mut self,
+        sender: Sender<'ch, M, Vec<UsbKeycodes>, N>,
+    ) where
         M: RawMutex,
     {
         loop {
@@ -58,7 +172,7 @@ impl<'d, const KEY_N: usize> Keyboard<'d, KEY_N> {
                 .next()
                 .await;
 
-            let mut pressed: Vec<char> = Vec::new();
+            let mut pressed: Vec<UsbKeycodes> = Vec::new();
             for key in self.keys.iter_mut().filter_map(|opt| opt.as_mut()) {
                 if key.button.is_low() {
                     pressed.push(key.value);
