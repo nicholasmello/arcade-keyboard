@@ -5,6 +5,7 @@ mod heartbeat;
 mod keyboard;
 mod usb;
 
+extern crate alloc;
 use crate::heartbeat::heartbeat;
 use crate::keyboard::Keyboard;
 use defmt::*;
@@ -17,6 +18,7 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::channel::Channel;
 use embedded_alloc::LlffHeap as Heap;
+use alloc::vec::Vec;
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -37,7 +39,7 @@ async fn main(_spawner: Spawner) {
         );
     }
 
-    let keyboard_events: Channel<ThreadModeRawMutex, usb::KeyboardEvent, 64> = Channel::new();
+    let keyboard_events: Channel<ThreadModeRawMutex, Vec<char>, 64> = Channel::new();
 
     let p = embassy_rp::init(Default::default());
 

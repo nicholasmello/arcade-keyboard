@@ -1,4 +1,4 @@
-use crate::usb::KeyboardEvent;
+use alloc::vec::Vec;
 use embassy_rp::gpio::Input;
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_sync::channel::Sender;
@@ -46,7 +46,7 @@ impl<'d, const KEY_N: usize> Keyboard<'d, KEY_N> {
         Ok(())
     }
 
-    pub async fn process<'ch, M, const N: usize>(mut self, sender: Sender<'ch, M, KeyboardEvent, N>)
+    pub async fn process<'ch, M, const N: usize>(mut self, sender: Sender<'ch, M, Vec<char>, N>)
     where
         M: RawMutex,
     {
@@ -57,14 +57,14 @@ impl<'d, const KEY_N: usize> Keyboard<'d, KEY_N> {
                 .collect::<FuturesUnordered<_>>()
                 .next()
                 .await;
+
+            let mut pressed: Vec<char> = Vec::new();
             for key in self.keys.iter_mut().filter_map(|opt| opt.as_mut()) {
-                sender
-                    .send(KeyboardEvent {
-                        key: key.value,
-                        action: key.button.get_level().into(),
-                    })
-                    .await;
+                if key.button.is_low() {
+                    pressed.push(key.value);
+                }
             }
+            sender.send(pressed).await;
         }
     }
 }
